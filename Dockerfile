@@ -15,8 +15,8 @@ COPY . .
 # Build the project
 RUN mvn clean package
 
-# Expose port 8080
-EXPOSE 8080
+# Expose port 8090
+EXPOSE 8090
 
 # Command to run the JAR file
 ENTRYPOINT ["java", "-jar", "target/sendevops-0.0.1-SNAPSHOT.jar"]
