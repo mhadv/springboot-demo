@@ -9,10 +9,28 @@ RUN apt-get update && \
 # Set the working directory
 WORKDIR /app
 
-# Copy the entire project
+# Copy the project files
 COPY . .
 
-# Create a simple Java web server using Maven
+# Create a simple Java application
+RUN echo ' \
+public class Main { \
+    public static void main(String[] args) { \
+        System.out.println("Starting server..."); \
+        try (java.net.ServerSocket server = new java.net.ServerSocket(8090)) { \
+            while (true) { \
+                try (java.net.Socket client = server.accept(); \
+                     java.io.PrintWriter out = new java.io.PrintWriter(client.getOutputStream(), true)) { \
+                    out.println("HTTP/1.1 200 OK\\r\\nContent-Type: text/plain\\r\\n\\r\\nHello, World!"); \
+                } \
+            } \
+        } catch (Exception e) { \
+            e.printStackTrace(); \
+        } \
+    } \
+}' > src/main/java/Main.java
+
+# Create a minimal Maven POM file
 RUN echo ' \
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" \
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"> \
@@ -31,38 +49,30 @@ RUN echo ' \
                     <target>17</target> \
                 </configuration> \
             </plugin> \
+            <plugin> \
+                <groupId>org.apache.maven.plugins</groupId> \
+                <artifactId>maven-assembly-plugin</artifactId> \
+                <version>3.3.0</version> \
+                <configuration> \
+                    <archive> \
+                        <manifest> \
+                            <mainClass>Main</mainClass> \
+                        </manifest> \
+                    </archive> \
+                    <descriptorRefs> \
+                        <descriptorRef>jar-with-dependencies</descriptorRef> \
+                    </descriptorRefs> \
+                </configuration> \
+            </plugin> \
         </plugins> \
     </build> \
 </project>' > pom.xml
 
-RUN echo ' \
-import com.sun.net.httpserver.HttpServer; \
-import com.sun.net.httpserver.HttpHandler; \
-import com.sun.net.httpserver.HttpExchange; \
-import java.io.OutputStream; \
-import java.net.InetSocketAddress; \
-public class App { \
-    public static void main(String[] args) throws Exception { \
-        HttpServer server = HttpServer.create(new InetSocketAddress(8090), 0); \
-        server.createContext("/", new HttpHandler() { \
-            public void handle(HttpExchange exchange) throws java.io.IOException { \
-                String response = "Hello, World!"; \
-                exchange.sendResponseHeaders(200, response.length()); \
-                OutputStream os = exchange.getResponseBody(); \
-                os.write(response.getBytes()); \
-                os.close(); \
-            } \
-        }); \
-        server.start(); \
-        System.out.println("Server is running on http://localhost:8090"); \
-    } \
-}' > src/main/java/App.java
+# Build the application
+RUN mvn clean package
 
-# Build the project
-RUN mvn compile assembly:single
-
-# Expose the port
+# Expose port 8090
 EXPOSE 8090
 
-# Command to run the JAR file
-ENTRYPOINT ["java", "-cp", "target/hello-world-1.0-SNAPSHOT-jar-with-dependencies.jar", "App"]
+# Command to run the application
+CMD ["java", "-cp", "target/hello-world-1.0-SNAPSHOT-jar-with-dependencies.jar", "Main"]
